@@ -8,7 +8,8 @@ import { AddFundsModal } from "@/components/wallet/add-funds-modal"
 import { useState } from "react"
 import { useGameData } from "@/hooks/use-game-data"
 import { useWallet } from "@/hooks/use-wallet"
-import { usePrivy } from "@privy-io/react-auth"
+import { useAuth } from "@/components/providers/auth-provider"
+import { useRouter } from "next/navigation"
 
 export default function HomePage() {
   const [selectedBet, setSelectedBet] = useState(1)
@@ -16,11 +17,13 @@ export default function HomePage() {
   const [showAddFunds, setShowAddFunds] = useState(false)
   const { leaderboard, globalStats } = useGameData()
   const { wallet, placeBet } = useWallet()
-  const { login, logout, authenticated, user } = usePrivy()
+  const { user, signOut } = useAuth()
+  const router = useRouter()
+  const authenticated = !!user
 
   const handleJoinGame = async () => {
     if (!authenticated) {
-      login()
+      router.push("/auth/login")
       return
     }
 
@@ -44,7 +47,6 @@ export default function HomePage() {
     try {
       return user.email.split("@")[0]
     } catch (error) {
-      console.log("[v0] Error al procesar email:", error)
       return "Usuario"
     }
   }
@@ -64,7 +66,7 @@ export default function HomePage() {
   }
 
   return (
-    <div className="damnbruh-container">
+    <div className="wormbruh-container">
       <SnakeWorms />
 
       <header className="absolute top-0 left-0 right-0 z-10 p-4">
@@ -78,11 +80,11 @@ export default function HomePage() {
             </span>
           </div>
           {authenticated ? (
-            <Button onClick={logout} className="bg-destructive hover:bg-destructive/90">
+            <Button onClick={() => signOut()} className="bg-destructive hover:bg-destructive/90">
               Cerrar Sesión
             </Button>
           ) : (
-            <Button onClick={login} className="bg-primary hover:bg-primary/90">
+            <Button onClick={() => router.push("/auth/login")} className="bg-primary hover:bg-primary/90">
               Iniciar Sesión
             </Button>
           )}
@@ -91,7 +93,7 @@ export default function HomePage() {
 
       <div className="absolute top-20 left-1/2 transform -translate-x-1/2 text-center z-10">
         <h1 className="text-6xl font-black text-white tracking-wider">
-          DAMN<span className="text-primary">BRUH</span>
+          WORM<span className="text-primary">BRUH</span>
         </h1>
         <p className="text-primary text-lg font-bold tracking-widest mt-2">SNAKE BATTLE ROYALE</p>
       </div>
@@ -226,7 +228,7 @@ export default function HomePage() {
             <div className="flex gap-2 mb-6">
               <Button
                 className="flex-1 bg-accent hover:bg-accent/90"
-                onClick={() => (authenticated ? setShowAddFunds(true) : login())}
+                onClick={() => (authenticated ? setShowAddFunds(true) : router.push("/auth/login"))}
               >
                 {authenticated ? "Agregar Fondos" : "Iniciar Sesión"}
               </Button>

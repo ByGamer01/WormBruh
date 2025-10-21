@@ -1,20 +1,6 @@
 "use client"
 
-import { useEffect, useState, useCallback } from "react"
-
-interface WormSegment {
-  x: number
-  y: number
-}
-
-interface PlayerWorm {
-  id: string
-  segments: WormSegment[]
-  direction: { x: number; y: number }
-  color: string
-  speed: number
-  isPlayer: boolean
-}
+import { useEffect, useState } from "react"
 
 interface DecorativeWorm {
   id: string
@@ -23,36 +9,14 @@ interface DecorativeWorm {
   size: number
   color: string
   speed: number
-  isPlayer: false
+  angle: number
 }
 
-type Worm = PlayerWorm | DecorativeWorm
-
 export function SnakeWorms() {
-  const [worms, setWorms] = useState<Worm[]>([])
-  const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 })
-
-  const handleMouseMove = useCallback((e: MouseEvent) => {
-    setMousePosition({ x: e.clientX, y: e.clientY })
-  }, [])
+  const [worms, setWorms] = useState<DecorativeWorm[]>([])
 
   useEffect(() => {
-    const initialWorms: Worm[] = [
-      // Serpiente del jugador
-      {
-        id: "player",
-        segments: [
-          { x: window.innerWidth / 2, y: window.innerHeight / 2 },
-          { x: window.innerWidth / 2 - 20, y: window.innerHeight / 2 },
-          { x: window.innerWidth / 2 - 40, y: window.innerHeight / 2 },
-          { x: window.innerWidth / 2 - 60, y: window.innerHeight / 2 },
-        ],
-        direction: { x: 1, y: 0 },
-        color: "snake-green",
-        speed: 2,
-        isPlayer: true,
-      },
-      // Serpientes decorativas
+    const initialWorms: DecorativeWorm[] = [
       {
         id: "blue-1",
         x: Math.random() * window.innerWidth,
@@ -60,7 +24,7 @@ export function SnakeWorms() {
         size: 80,
         color: "snake-blue",
         speed: 0.3,
-        isPlayer: false,
+        angle: Math.random() * Math.PI * 2,
       },
       {
         id: "pink-1",
@@ -69,51 +33,57 @@ export function SnakeWorms() {
         size: 50,
         color: "snake-pink",
         speed: 0.7,
-        isPlayer: false,
+        angle: Math.random() * Math.PI * 2,
+      },
+      {
+        id: "green-1",
+        x: Math.random() * window.innerWidth,
+        y: Math.random() * window.innerHeight,
+        size: 60,
+        color: "snake-green",
+        speed: 0.5,
+        angle: Math.random() * Math.PI * 2,
+      },
+      {
+        id: "purple-1",
+        x: Math.random() * window.innerWidth,
+        y: Math.random() * window.innerHeight,
+        size: 70,
+        color: "snake-purple",
+        speed: 0.4,
+        angle: Math.random() * Math.PI * 2,
       },
     ]
 
     setWorms(initialWorms)
 
-    window.addEventListener("mousemove", handleMouseMove)
-
     const animateWorms = () => {
       setWorms((prevWorms) =>
         prevWorms.map((worm) => {
-          if (worm.isPlayer) {
-            const playerWorm = worm as PlayerWorm
-            const head = playerWorm.segments[0]
-            const dx = mousePosition.x - head.x
-            const dy = mousePosition.y - head.y
-            const distance = Math.sqrt(dx * dx + dy * dy)
+          let newX = worm.x + Math.cos(worm.angle) * worm.speed
+          let newY = worm.y + Math.sin(worm.angle) * worm.speed
+          let newAngle = worm.angle
 
-            if (distance > 5) {
-              const newDirection = {
-                x: (dx / distance) * playerWorm.speed,
-                y: (dy / distance) * playerWorm.speed,
-              }
+          // Rebotar en los bordes
+          if (newX < 0 || newX > window.innerWidth) {
+            newAngle = Math.PI - worm.angle
+            newX = Math.max(0, Math.min(window.innerWidth, newX))
+          }
+          if (newY < 0 || newY > window.innerHeight) {
+            newAngle = -worm.angle
+            newY = Math.max(0, Math.min(window.innerHeight, newY))
+          }
 
-              const newHead = {
-                x: head.x + newDirection.x,
-                y: head.y + newDirection.y,
-              }
+          // Cambio aleatorio de dirección ocasional
+          if (Math.random() < 0.01) {
+            newAngle += (Math.random() - 0.5) * 0.5
+          }
 
-              const newSegments = [newHead, ...playerWorm.segments.slice(0, -1)]
-
-              return {
-                ...playerWorm,
-                segments: newSegments,
-                direction: newDirection,
-              }
-            }
-            return worm
-          } else {
-            const decorativeWorm = worm as DecorativeWorm
-            return {
-              ...decorativeWorm,
-              x: (decorativeWorm.x + decorativeWorm.speed) % window.innerWidth,
-              y: decorativeWorm.y + Math.sin(Date.now() * 0.001 + decorativeWorm.x * 0.01) * 0.5,
-            }
+          return {
+            ...worm,
+            x: newX,
+            y: newY,
+            angle: newAngle,
           }
         }),
       )
@@ -122,44 +92,23 @@ export function SnakeWorms() {
     const interval = setInterval(animateWorms, 16) // 60 FPS
     return () => {
       clearInterval(interval)
-      window.removeEventListener("mousemove", handleMouseMove)
     }
-  }, [handleMouseMove, mousePosition])
+  }, [])
 
   return (
     <>
-      {worms.map((worm) => {
-        if (worm.isPlayer) {
-          const playerWorm = worm as PlayerWorm
-          return playerWorm.segments.map((segment, index) => (
-            <div
-              key={`${worm.id}-${index}`}
-              className={`snake-segment ${worm.color} ${index === 0 ? "snake-head" : ""}`}
-              style={{
-                left: `${segment.x - 10}px`,
-                top: `${segment.y - 10}px`,
-                width: `${20 - index * 2}px`,
-                height: `${20 - index * 2}px`,
-                zIndex: 1000 - index,
-              }}
-            />
-          ))
-        } else {
-          const decorativeWorm = worm as DecorativeWorm
-          return (
-            <div
-              key={worm.id}
-              className={`snake-worm ${worm.color}`}
-              style={{
-                left: `${decorativeWorm.x}px`,
-                top: `${decorativeWorm.y}px`,
-                width: `${decorativeWorm.size}px`,
-                height: `${decorativeWorm.size}px`,
-              }}
-            />
-          )
-        }
-      })}
+      {worms.map((worm) => (
+        <div
+          key={worm.id}
+          className={`snake-worm ${worm.color}`}
+          style={{
+            left: `${worm.x}px`,
+            top: `${worm.y}px`,
+            width: `${worm.size}px`,
+            height: `${worm.size}px`,
+          }}
+        />
+      ))}
     </>
   )
 }

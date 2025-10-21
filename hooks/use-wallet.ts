@@ -1,8 +1,8 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { createClient } from "@/lib/supabase/client"
-import { usePrivy } from "@privy-io/react-auth"
+import { createBrowserClient } from "@/lib/supabase/client"
+import { useAuth } from "@/components/providers/auth-provider"
 
 interface WalletData {
   balance: number
@@ -26,12 +26,13 @@ export function useWallet() {
   })
   const [transactions, setTransactions] = useState<Transaction[]>([])
   const [isLoading, setIsLoading] = useState(false)
-  const { authenticated, user } = usePrivy()
+  const { user } = useAuth()
+  const authenticated = !!user
 
   const fetchWallet = async () => {
     if (!authenticated || !user) return
 
-    const supabase = createClient()
+    const supabase = createBrowserClient()
     setIsLoading(true)
 
     try {
@@ -42,7 +43,6 @@ export function useWallet() {
         .single()
 
       if (walletError && walletError.code !== "PGRST116") {
-        console.error("[v0] Error fetching wallet:", walletError)
         return
       }
 
@@ -65,7 +65,6 @@ export function useWallet() {
         setTransactions(transactionsData)
       }
     } catch (error) {
-      console.error("[v0] Error in fetchWallet:", error)
     } finally {
       setIsLoading(false)
     }
@@ -74,7 +73,7 @@ export function useWallet() {
   const addFunds = async (amount: number) => {
     if (!authenticated || !user) return false
 
-    const supabase = createClient()
+    const supabase = createBrowserClient()
     setIsLoading(true)
 
     try {
@@ -99,7 +98,6 @@ export function useWallet() {
       await fetchWallet()
       return true
     } catch (error) {
-      console.error("[v0] Error adding funds:", error)
       return false
     } finally {
       setIsLoading(false)
@@ -109,7 +107,7 @@ export function useWallet() {
   const placeBet = async (amount: number, gameSessionId?: string) => {
     if (!authenticated || !user || wallet.balance < amount) return false
 
-    const supabase = createClient()
+    const supabase = createBrowserClient()
     setIsLoading(true)
 
     try {
@@ -136,7 +134,6 @@ export function useWallet() {
       await fetchWallet()
       return true
     } catch (error) {
-      console.error("[v0] Error placing bet:", error)
       return false
     } finally {
       setIsLoading(false)
@@ -146,7 +143,7 @@ export function useWallet() {
   const addWinnings = async (amount: number, gameSessionId?: string) => {
     if (!authenticated || !user) return false
 
-    const supabase = createClient()
+    const supabase = createBrowserClient()
     setIsLoading(true)
 
     try {
@@ -173,7 +170,6 @@ export function useWallet() {
       await fetchWallet()
       return true
     } catch (error) {
-      console.error("[v0] Error adding winnings:", error)
       return false
     } finally {
       setIsLoading(false)

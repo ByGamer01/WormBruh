@@ -66,12 +66,12 @@ export function useReferralSystem() {
       const { data, error } = await supabase.from("referral_codes").select("*").eq("user_id", user.id).single()
 
       if (error && error.code !== "PGRST116") {
-        console.error("Error fetching referral code:", error)
+        return
       } else if (data) {
         setReferralCode(data)
       }
     } catch (error) {
-      console.error("Error in fetchReferralCode:", error)
+      return
     }
   }
 
@@ -92,13 +92,11 @@ export function useReferralSystem() {
         .eq("referrer_id", user.id)
         .order("created_at", { ascending: false })
 
-      if (error) {
-        console.error("Error fetching referrals:", error)
-      } else {
+      if (!error) {
         setReferrals(data || [])
       }
     } catch (error) {
-      console.error("Error in fetchReferrals:", error)
+      return
     }
   }
 
@@ -113,13 +111,11 @@ export function useReferralSystem() {
         .eq("user_id", user.id)
         .order("created_at", { ascending: false })
 
-      if (error) {
-        console.error("Error fetching rewards:", error)
-      } else {
+      if (!error) {
         setRewards(data || [])
       }
     } catch (error) {
-      console.error("Error in fetchRewards:", error)
+      return
     }
   }
 
@@ -180,7 +176,6 @@ export function useReferralSystem() {
       })
 
       if (referralError) {
-        console.error("Error creating referral:", referralError)
         return { success: false, error: "Error al procesar el referido" }
       }
 
@@ -195,7 +190,6 @@ export function useReferralSystem() {
 
       return { success: true, error: null }
     } catch (error) {
-      console.error("Error in processReferral:", error)
       return { success: false, error: "Error inesperado" }
     }
   }
@@ -213,15 +207,12 @@ export function useReferralSystem() {
         .eq("user_id", user?.id)
 
       if (error) {
-        console.error("Error claiming reward:", error)
         return { success: false, error: "Error al reclamar recompensa" }
       }
 
-      // Refrescar datos
       await fetchRewards()
       return { success: true, error: null }
     } catch (error) {
-      console.error("Error in claimReward:", error)
       return { success: false, error: "Error inesperado" }
     }
   }

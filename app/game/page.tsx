@@ -1,7 +1,7 @@
 "use client"
 
 import { AuthGuard } from "@/components/auth/auth-guard"
-import { GameCanvas } from "@/components/game/game-canvas"
+import { MultiplayerWormGame } from "@/components/game/multiplayer-worm-game"
 import { Button } from "@/components/ui/button"
 import Link from "next/link"
 
@@ -10,14 +10,14 @@ export default function GamePage() {
     <AuthGuard>
       <div className="min-h-screen bg-background">
         {/* Navigation */}
-        <nav className="absolute top-4 left-4 z-10">
+        <nav className="absolute top-4 left-4 z-50">
           <Button asChild variant="outline" size="sm">
             <Link href="/">← Volver al Inicio</Link>
           </Button>
         </nav>
 
-        {/* Game Canvas */}
-        <GameCanvas />
+        {/* Multiplayer Worm Game */}
+        <MultiplayerWormGame />
       </div>
     </AuthGuard>
   )

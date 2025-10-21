@@ -8,21 +8,11 @@ interface PrivyProviderWrapperProps {
   children: React.ReactNode
 }
 
+const PRIVY_APP_ID = process.env.NEXT_PUBLIC_PRIVY_APP_ID || "cmf8haz92005tl80bsg0fikx8"
+
 export function PrivyProviderWrapper({ children }: PrivyProviderWrapperProps) {
   return (
-    <PrivyProvider
-      appId="cmf8haz92005tl80bsg0fikx8"
-      config={privyConfig}
-      onSuccess={(user) => {
-        console.log("[v0] Usuario autenticado exitosamente:", user.id)
-      }}
-      onError={(error) => {
-        console.error("[v0] Error de autenticación:", error)
-        if (error.message && typeof error.message === "string") {
-          console.error("[v0] Mensaje de error:", error.message)
-        }
-      }}
-    >
+    <PrivyProvider appId={PRIVY_APP_ID} config={privyConfig}>
       {children}
     </PrivyProvider>
   )
