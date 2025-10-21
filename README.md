@@ -1,30 +1,61 @@
-# Juego con afiliación
+# 🪱 WormBruh
 
-*Automatically synced with your [v0.app](https://v0.app) deployments*
+**WormBruh** is an open-source multiplayer game inspired by classic *io games* like Slither.io — but with a competitive and social twist.  
+Control your worm, battle other players in real-time, climb the leaderboard, and customize your appearance in a fun, modern environment.
 
-[![Deployed on Vercel](https://img.shields.io/badge/Deployed%20on-Vercel-black?style=for-the-badge&logo=vercel)](https://vercel.com/melissaaaaas-projects/v0-juego-con-afiliacion)
-[![Built with v0](https://img.shields.io/badge/Built%20with-v0.app-black?style=for-the-badge)](https://v0.app/chat/projects/CtNoBl02kTo)
+🌐 **Live demo:** [wormbruh.vercel.app](https://wormbruh.vercel.app)
 
-## Overview
+---
 
-This repository will stay in sync with your deployed chats on [v0.app](https://v0.app).
-Any changes you make to your deployed app will be automatically pushed to this repository from [v0.app](https://v0.app).
+## 🚀 Features
 
-## Deployment
+- 🕹️ Real-time **multiplayer gameplay**
+- 💰 Competitive **wager and reward** system
+- 🧑‍🤝‍🧑 **Global leaderboard** with live rankings
+- 🎨 Player **appearance customization**
+- 👥 **Friends & referrals** system
+- 🏦 **Wallet integration** and balance tracking
+- ⚙️ Built with **Next.js + TypeScript + Firebase + Tailwind**
 
-Your project is live at:
+---
 
-**[https://vercel.com/melissaaaaas-projects/v0-juego-con-afiliacion](https://vercel.com/melissaaaaas-projects/v0-juego-con-afiliacion)**
+## 🧩 Tech Stack
 
-## Build your app
+| Technology | Purpose |
+|-------------|----------|
+| **Next.js** | React framework for frontend and backend SSR |
+| **TypeScript** | Type-safe, scalable development |
+| **Firebase** | Auth, database, and real-time updates |
+| **Tailwind CSS** | Fast, responsive UI styling |
+| **Vercel** | Deployment and CI/CD |
 
-Continue building your app on:
+---
 
-**[https://v0.app/chat/projects/CtNoBl02kTo](https://v0.app/chat/projects/CtNoBl02kTo)**
+## 💻 Local Setup
 
-## How It Works
+# 1. Clone the repository
+git clone https://github.com/your-username/wormbruh.git
 
-1. Create and modify your project using [v0.app](https://v0.app)
-2. Deploy your chats from the v0 interface
-3. Changes are automatically pushed to this repository
-4. Vercel deploys the latest version from this repository
+# 2. Install dependencies
+npm install
+
+# 3. Create a .env.local file with your environment variables
+NEXT_PUBLIC_FIREBASE_API_KEY=...
+NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=...
+NEXT_PUBLIC_API_URL=...
+
+# 4. Start the development server
+npm run dev
+
+## 🧠 Contributing
+# Contributions are welcome! You can improve features, fix bugs, or suggest ideas.
+
+# 1. Fork the project
+
+# 2. Create your branch
+
+# 3. Copiar código
+git checkout -b feature/amazing-feature
+# 4. Commit your changes
+git commit -m "Add amazing feature"
+# 5.  Push to your branch and open a Pull Request 🚀
