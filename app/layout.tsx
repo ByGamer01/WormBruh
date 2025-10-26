@@ -2,7 +2,6 @@ import type React from "react"
 import type { Metadata } from "next"
 import { Suspense } from "react"
 import { AuthProvider } from "@/components/providers/auth-provider"
-import { Toaster } from "@/components/ui/sonner"
 import "./globals.css"
 
 export const dynamic = "force-dynamic"
@@ -28,7 +27,6 @@ export default function RootLayout({
       <body className="font-sans antialiased">
         <AuthProvider>
           <Suspense fallback={null}>{children}</Suspense>
-          <Toaster />
         </AuthProvider>
       </body>
     </html>
