@@ -1,7 +1,7 @@
 "use client"
 
-import { usePrivy } from "@privy-io/react-auth"
-import { createClient } from "@/lib/supabase/client"
+import { useAuth } from "@/components/providers/auth-provider"
+import { createBrowserClient } from "@/lib/supabase/client"
 import { useEffect, useState } from "react"
 
 interface ReferralCode {
@@ -45,7 +45,8 @@ interface ReferralStats {
 }
 
 export function useReferralSystem() {
-  const { user, authenticated } = usePrivy()
+  const { user } = useAuth()
+  const authenticated = !!user
   const [referralCode, setReferralCode] = useState<ReferralCode | null>(null)
   const [referrals, setReferrals] = useState<Referral[]>([])
   const [rewards, setRewards] = useState<ReferralReward[]>([])
@@ -56,9 +57,8 @@ export function useReferralSystem() {
     totalRewardsEarned: 0,
   })
   const [loading, setLoading] = useState(true)
-  const supabase = createClient()
+  const supabase = createBrowserClient()
 
-  // Obtener código de referido del usuario
   const fetchReferralCode = async () => {
     if (!user) return
 
@@ -75,7 +75,6 @@ export function useReferralSystem() {
     }
   }
 
-  // Obtener referidos del usuario
   const fetchReferrals = async () => {
     if (!user) return
 
@@ -100,7 +99,6 @@ export function useReferralSystem() {
     }
   }
 
-  // Obtener recompensas del usuario
   const fetchRewards = async () => {
     if (!user) return
 
@@ -119,7 +117,6 @@ export function useReferralSystem() {
     }
   }
 
-  // Calcular estadísticas
   const calculateStats = () => {
     const totalReferrals = referrals.length
     const confirmedReferrals = referrals.filter((r) => r.status === "confirmed" || r.status === "rewarded").length
@@ -134,16 +131,14 @@ export function useReferralSystem() {
     })
   }
 
-  // Procesar referido (cuando alguien usa un código)
-  const processReferral = async (referralCode: string) => {
+  const processReferral = async (referralCodeStr: string) => {
     if (!user) return { success: false, error: "Usuario no autenticado" }
 
     try {
-      // Verificar que el código existe y no es del mismo usuario
       const { data: codeData, error: codeError } = await supabase
         .from("referral_codes")
         .select("*")
-        .eq("code", referralCode)
+        .eq("code", referralCodeStr)
         .single()
 
       if (codeError || !codeData) {
@@ -154,7 +149,6 @@ export function useReferralSystem() {
         return { success: false, error: "No puedes usar tu propio código de referido" }
       }
 
-      // Verificar que el usuario no ha sido referido antes
       const { data: existingReferral } = await supabase
         .from("referrals")
         .select("*")
@@ -165,11 +159,10 @@ export function useReferralSystem() {
         return { success: false, error: "Ya has sido referido anteriormente" }
       }
 
-      // Crear el referido
       const { error: referralError } = await supabase.from("referrals").insert({
         referrer_id: codeData.user_id,
         referred_id: user.id,
-        referral_code: referralCode,
+        referral_code: referralCodeStr,
         status: "confirmed",
         reward_points: 100,
         confirmed_at: new Date().toISOString(),
@@ -179,7 +172,6 @@ export function useReferralSystem() {
         return { success: false, error: "Error al procesar el referido" }
       }
 
-      // Crear recompensa para el referidor
       await supabase.from("referral_rewards").insert({
         user_id: codeData.user_id,
         referral_id: user.id,
@@ -194,7 +186,6 @@ export function useReferralSystem() {
     }
   }
 
-  // Reclamar recompensa
   const claimReward = async (rewardId: string) => {
     try {
       const { error } = await supabase
@@ -217,13 +208,11 @@ export function useReferralSystem() {
     }
   }
 
-  // Generar enlace de referido
   const getReferralLink = () => {
     if (!referralCode) return ""
     return `${window.location.origin}?ref=${referralCode.code}`
   }
 
-  // Efectos
   useEffect(() => {
     if (!authenticated || !user) {
       setLoading(false)

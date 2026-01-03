@@ -1,7 +1,7 @@
 "use client"
 
-import { usePrivy } from "@privy-io/react-auth"
-import { createClient } from "@/lib/supabase/client"
+import { useAuth } from "@/components/providers/auth-provider"
+import { createBrowserClient } from "@/lib/supabase/client"
 import { useEffect, useState } from "react"
 
 interface GameSession {
@@ -32,7 +32,8 @@ interface GameStats {
 }
 
 export function useGameStats() {
-  const { user, authenticated } = usePrivy()
+  const { user } = useAuth()
+  const authenticated = !!user
   const [sessions, setSessions] = useState<GameSession[]>([])
   const [achievements, setAchievements] = useState<Achievement[]>([])
   const [stats, setStats] = useState<GameStats>({
@@ -45,9 +46,8 @@ export function useGameStats() {
     improvementRate: 0,
   })
   const [loading, setLoading] = useState(true)
-  const supabase = createClient()
+  const supabase = createBrowserClient()
 
-  // Obtener sesiones de juego
   const fetchGameSessions = async () => {
     if (!user) return
 
@@ -59,17 +59,14 @@ export function useGameStats() {
         .order("completed_at", { ascending: false })
         .limit(50)
 
-      if (error) {
-        console.error("Error fetching game sessions:", error)
-      } else {
+      if (!error) {
         setSessions(data || [])
       }
     } catch (error) {
-      console.error("Error in fetchGameSessions:", error)
+      // Silent error
     }
   }
 
-  // Obtener logros del usuario
   const fetchUserAchievements = async () => {
     if (!user) return
 
@@ -89,9 +86,7 @@ export function useGameStats() {
         .eq("user_id", user.id)
         .order("earned_at", { ascending: false })
 
-      if (error) {
-        console.error("Error fetching achievements:", error)
-      } else {
+      if (!error) {
         const formattedAchievements = (data || []).map((item: any) => ({
           ...item.achievements,
           earned_at: item.earned_at,
@@ -99,11 +94,10 @@ export function useGameStats() {
         setAchievements(formattedAchievements)
       }
     } catch (error) {
-      console.error("Error in fetchUserAchievements:", error)
+      // Silent error
     }
   }
 
-  // Calcular estadísticas
   const calculateStats = () => {
     if (sessions.length === 0) return
 
@@ -113,12 +107,10 @@ export function useGameStats() {
     const averageScore = Math.round(sessions.reduce((sum, s) => sum + s.score, 0) / totalGames)
     const bestLevel = Math.max(...sessions.map((s) => s.level))
 
-    // Juegos de esta semana
     const oneWeekAgo = new Date()
     oneWeekAgo.setDate(oneWeekAgo.getDate() - 7)
     const gamesThisWeek = sessions.filter((s) => new Date(s.completed_at) > oneWeekAgo).length
 
-    // Tasa de mejora (comparar últimos 10 juegos con anteriores 10)
     let improvementRate = 0
     if (sessions.length >= 20) {
       const recent10 = sessions.slice(0, 10)
@@ -139,7 +131,6 @@ export function useGameStats() {
     })
   }
 
-  // Formatear tiempo de juego
   const formatPlayTime = (seconds: number) => {
     const hours = Math.floor(seconds / 3600)
     const minutes = Math.floor((seconds % 3600) / 60)
@@ -149,7 +140,6 @@ export function useGameStats() {
     return `${minutes}m`
   }
 
-  // Efectos
   useEffect(() => {
     if (!authenticated || !user) {
       setLoading(false)

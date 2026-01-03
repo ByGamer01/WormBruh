@@ -1,600 +1,431 @@
 "use client"
 
-import { useState, useEffect, useCallback, useRef } from "react"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent } from "@/components/ui/card"
-import { usePrivy } from "@privy-io/react-auth"
+import { useEffect, useRef, useState, useCallback } from "react"
 import { useWallet } from "@/hooks/use-wallet"
-import { createClient } from "@/lib/supabase/client"
-
-interface Position {
-  x: number
-  y: number
-}
-
-interface SnakeSegment extends Position {
-  id: string
-}
-
-interface Food extends Position {
-  id: string
-  value: number
-  type: "normal" | "bonus" | "player"
-}
-
-interface Player {
-  id: string
-  segments: SnakeSegment[]
-  direction: Position
-  color: string
-  money: number
-  isAlive: boolean
-  username: string
-}
-
-interface GameState {
-  status: "waiting" | "playing" | "gameOver"
-  money: number
-  score: number
-  level: number
-  playTime: number
-}
 
 interface SnakeGameProps {
   betAmount: number
 }
 
-const GRID_SIZE = 20
-const INITIAL_SPEED = 150
-const CANVAS_WIDTH = 800
-const CANVAS_HEIGHT = 600
+interface Point {
+  x: number
+  y: number
+}
+
+interface Snake {
+  id: string
+  segments: Point[]
+  color: string
+  direction: number
+  speed: number
+  isPlayer: boolean
+  targetFood: Point | null
+  score: number
+}
+
+interface Food {
+  x: number
+  y: number
+  value: number
+  color: string
+}
 
 export function SnakeGame({ betAmount }: SnakeGameProps) {
-  const { user, authenticated } = usePrivy()
-  const { addWinnings } = useWallet()
-  const supabase = createClient()
   const canvasRef = useRef<HTMLCanvasElement>(null)
-  const gameLoopRef = useRef<number>()
-  const [currentGameSessionId, setCurrentGameSessionId] = useState<string | null>(null)
+  const [score, setScore] = useState(0)
+  const [earnings, setEarnings] = useState(0)
+  const [gameOver, setGameOver] = useState(false)
+  const [gameStarted, setGameStarted] = useState(false)
+  const { addWinnings } = useWallet()
 
-  const [gameState, setGameState] = useState<GameState>({
-    status: "waiting",
-    money: 0,
-    score: 0,
-    level: 1,
-    playTime: 0,
+  const mousePos = useRef<Point>({ x: 400, y: 300 })
+  const snakesRef = useRef<Snake[]>([])
+  const foodRef = useRef<Food[]>([])
+  const animationRef = useRef<number>()
+  const gameOverRef = useRef(false)
+
+  const WORLD_WIDTH = 2000
+  const WORLD_HEIGHT = 2000
+  const SEGMENT_SIZE = 12
+  const INITIAL_SEGMENTS = 10
+  const FOOD_VALUE = 0.01
+
+  const generateColor = () => {
+    const colors = [
+      "#FF6B6B",
+      "#4ECDC4",
+      "#45B7D1",
+      "#96CEB4",
+      "#FFEAA7",
+      "#DDA0DD",
+      "#98D8C8",
+      "#F7DC6F",
+      "#BB8FCE",
+      "#85C1E9",
+      "#F8B500",
+      "#FF6F61",
+    ]
+    return colors[Math.floor(Math.random() * colors.length)]
+  }
+
+  const createSnake = (isPlayer: boolean, id: string): Snake => {
+    const startX = isPlayer ? WORLD_WIDTH / 2 : Math.random() * WORLD_WIDTH
+    const startY = isPlayer ? WORLD_HEIGHT / 2 : Math.random() * WORLD_HEIGHT
+    const segments: Point[] = []
+
+    for (let i = 0; i < INITIAL_SEGMENTS; i++) {
+      segments.push({ x: startX - i * SEGMENT_SIZE, y: startY })
+    }
+
+    return {
+      id,
+      segments,
+      color: isPlayer ? "#00FF00" : generateColor(),
+      direction: Math.random() * Math.PI * 2,
+      speed: isPlayer ? 4 : 2 + Math.random() * 2,
+      isPlayer,
+      targetFood: null,
+      score: 0,
+    }
+  }
+
+  const createFood = (): Food => ({
+    x: Math.random() * WORLD_WIDTH,
+    y: Math.random() * WORLD_HEIGHT,
+    value: FOOD_VALUE,
+    color: `hsl(${Math.random() * 360}, 70%, 60%)`,
   })
 
-  const [player, setPlayer] = useState<Player>({
-    id: "player",
-    segments: [
-      { id: "1", x: 10, y: 10 },
-      { id: "2", x: 9, y: 10 },
-      { id: "3", x: 8, y: 10 },
-    ],
-    direction: { x: 1, y: 0 },
-    color: "#10b981",
-    money: 0,
-    isAlive: true,
-    username: user?.email?.split("@")[0] || "Player",
-  })
+  const initGame = useCallback(() => {
+    const snakes: Snake[] = [createSnake(true, "player")]
 
-  const [food, setFood] = useState<Food[]>([])
-  const [otherPlayers, setOtherPlayers] = useState<Player[]>([])
-  const [gameSpeed, setGameSpeed] = useState(INITIAL_SPEED)
-
-  const generateFood = useCallback(() => {
-    const newFood: Food = {
-      id: Math.random().toString(36).substr(2, 9),
-      x: Math.floor(Math.random() * (CANVAS_WIDTH / GRID_SIZE)),
-      y: Math.floor(Math.random() * (CANVAS_HEIGHT / GRID_SIZE)),
-      value: Math.floor(Math.random() * 50) + 10,
-      type: Math.random() > 0.8 ? "bonus" : "normal",
+    for (let i = 0; i < 8; i++) {
+      snakes.push(createSnake(false, `ai_${i}`))
     }
-    return newFood
+
+    snakesRef.current = snakes
+
+    const food: Food[] = []
+    for (let i = 0; i < 200; i++) {
+      food.push(createFood())
+    }
+    foodRef.current = food
+
+    setScore(0)
+    setEarnings(0)
+    setGameOver(false)
+    gameOverRef.current = false
+    setGameStarted(true)
   }, [])
 
-  const generateBotPlayer = useCallback(() => {
-    const colors = ["#3b82f6", "#ec4899", "#f59e0b", "#8b5cf6", "#ef4444"]
-    const names = ["Bot_Alpha", "Bot_Beta", "Bot_Gamma", "Bot_Delta", "Bot_Omega"]
+  const findNearestFood = (snake: Snake): Food | null => {
+    if (foodRef.current.length === 0) return null
 
-    const botPlayer: Player = {
-      id: Math.random().toString(36).substr(2, 9),
-      segments: [
-        {
-          id: "1",
-          x: Math.floor(Math.random() * (CANVAS_WIDTH / GRID_SIZE)),
-          y: Math.floor(Math.random() * (CANVAS_HEIGHT / GRID_SIZE)),
-        },
-      ],
-      direction: { x: Math.random() > 0.5 ? 1 : -1, y: 0 },
-      color: colors[Math.floor(Math.random() * colors.length)],
-      money: Math.floor(Math.random() * 500) + 100,
-      isAlive: true,
-      username: names[Math.floor(Math.random() * names.length)],
+    const head = snake.segments[0]
+    let nearest: Food | null = null
+    let minDist = Number.POSITIVE_INFINITY
+
+    for (const food of foodRef.current) {
+      const dist = Math.hypot(food.x - head.x, food.y - head.y)
+      if (dist < minDist) {
+        minDist = dist
+        nearest = food
+      }
     }
 
-    // Agregar más segmentos al bot
-    for (let i = 1; i < 3; i++) {
-      botPlayer.segments.push({
-        id: (i + 1).toString(),
-        x: botPlayer.segments[0].x - i,
-        y: botPlayer.segments[0].y,
-      })
+    return nearest
+  }
+
+  const updateSnake = (snake: Snake, canvas: HTMLCanvasElement) => {
+    const head = snake.segments[0]
+
+    if (snake.isPlayer) {
+      const playerSnake = snakesRef.current.find((s) => s.isPlayer)
+      if (!playerSnake) return
+
+      const centerX = canvas.width / 2
+      const centerY = canvas.height / 2
+
+      const targetX = head.x + (mousePos.current.x - centerX)
+      const targetY = head.y + (mousePos.current.y - centerY)
+
+      snake.direction = Math.atan2(targetY - head.y, targetX - head.x)
+    } else {
+      if (!snake.targetFood || Math.random() < 0.02) {
+        snake.targetFood = findNearestFood(snake)
+      }
+
+      if (snake.targetFood) {
+        const targetDir = Math.atan2(snake.targetFood.y - head.y, snake.targetFood.x - head.x)
+
+        let diff = targetDir - snake.direction
+        while (diff > Math.PI) diff -= Math.PI * 2
+        while (diff < -Math.PI) diff += Math.PI * 2
+
+        snake.direction += diff * 0.1
+      }
+
+      if (head.x < 50) snake.direction = 0
+      if (head.x > WORLD_WIDTH - 50) snake.direction = Math.PI
+      if (head.y < 50) snake.direction = Math.PI / 2
+      if (head.y > WORLD_HEIGHT - 50) snake.direction = -Math.PI / 2
     }
 
-    return botPlayer
-  }, [])
+    const newHead = {
+      x: head.x + Math.cos(snake.direction) * snake.speed,
+      y: head.y + Math.sin(snake.direction) * snake.speed,
+    }
 
-  const handleKeyPress = useCallback(
-    (event: KeyboardEvent) => {
-      if (gameState.status !== "playing") return
+    newHead.x = Math.max(0, Math.min(WORLD_WIDTH, newHead.x))
+    newHead.y = Math.max(0, Math.min(WORLD_HEIGHT, newHead.y))
 
-      setPlayer((prev) => {
-        let newDirection = prev.direction
+    snake.segments.unshift(newHead)
+    snake.segments.pop()
 
-        switch (event.key) {
-          case "ArrowUp":
-          case "w":
-          case "W":
-            if (prev.direction.y === 0) newDirection = { x: 0, y: -1 }
-            break
-          case "ArrowDown":
-          case "s":
-          case "S":
-            if (prev.direction.y === 0) newDirection = { x: 0, y: 1 }
-            break
-          case "ArrowLeft":
-          case "a":
-          case "A":
-            if (prev.direction.x === 0) newDirection = { x: -1, y: 0 }
-            break
-          case "ArrowRight":
-          case "d":
-          case "D":
-            if (prev.direction.x === 0) newDirection = { x: 1, y: 0 }
-            break
+    // Check food collision
+    for (let i = foodRef.current.length - 1; i >= 0; i--) {
+      const food = foodRef.current[i]
+      const dist = Math.hypot(food.x - newHead.x, food.y - newHead.y)
+
+      if (dist < SEGMENT_SIZE + 5) {
+        foodRef.current.splice(i, 1)
+        foodRef.current.push(createFood())
+
+        snake.segments.push({ ...snake.segments[snake.segments.length - 1] })
+        snake.score++
+
+        if (snake.isPlayer) {
+          setScore((prev) => prev + 1)
+          setEarnings((prev) => prev + FOOD_VALUE)
+        }
+      }
+    }
+
+    // Check collision with other snakes (player only)
+    if (snake.isPlayer) {
+      for (const other of snakesRef.current) {
+        if (other.id === snake.id) continue
+
+        for (let i = 0; i < other.segments.length; i++) {
+          const seg = other.segments[i]
+          const dist = Math.hypot(seg.x - newHead.x, seg.y - newHead.y)
+
+          if (dist < SEGMENT_SIZE) {
+            gameOverRef.current = true
+            setGameOver(true)
+            return
+          }
+        }
+      }
+    }
+  }
+
+  const draw = useCallback(
+    (ctx: CanvasRenderingContext2D, canvas: HTMLCanvasElement) => {
+      const playerSnake = snakesRef.current.find((s) => s.isPlayer)
+      if (!playerSnake) return
+
+      const cameraX = playerSnake.segments[0].x - canvas.width / 2
+      const cameraY = playerSnake.segments[0].y - canvas.height / 2
+
+      // Background
+      ctx.fillStyle = "#1a1a2e"
+      ctx.fillRect(0, 0, canvas.width, canvas.height)
+
+      // Grid
+      ctx.strokeStyle = "#2a2a4e"
+      ctx.lineWidth = 1
+      const gridSize = 50
+      const startX = -cameraX % gridSize
+      const startY = -cameraY % gridSize
+
+      for (let x = startX; x < canvas.width; x += gridSize) {
+        ctx.beginPath()
+        ctx.moveTo(x, 0)
+        ctx.lineTo(x, canvas.height)
+        ctx.stroke()
+      }
+      for (let y = startY; y < canvas.height; y += gridSize) {
+        ctx.beginPath()
+        ctx.moveTo(0, y)
+        ctx.lineTo(canvas.width, y)
+        ctx.stroke()
+      }
+
+      // Food
+      for (const food of foodRef.current) {
+        const screenX = food.x - cameraX
+        const screenY = food.y - cameraY
+
+        if (screenX > -20 && screenX < canvas.width + 20 && screenY > -20 && screenY < canvas.height + 20) {
+          ctx.beginPath()
+          ctx.arc(screenX, screenY, 6, 0, Math.PI * 2)
+          ctx.fillStyle = food.color
+          ctx.fill()
+
+          ctx.beginPath()
+          ctx.arc(screenX, screenY, 8, 0, Math.PI * 2)
+          ctx.strokeStyle = food.color
+          ctx.globalAlpha = 0.5
+          ctx.stroke()
+          ctx.globalAlpha = 1
+        }
+      }
+
+      // Snakes
+      for (const snake of snakesRef.current) {
+        const segments = snake.segments
+
+        // Body
+        for (let i = segments.length - 1; i >= 0; i--) {
+          const seg = segments[i]
+          const screenX = seg.x - cameraX
+          const screenY = seg.y - cameraY
+
+          if (screenX > -50 && screenX < canvas.width + 50 && screenY > -50 && screenY < canvas.height + 50) {
+            const size = SEGMENT_SIZE - (i / segments.length) * 4
+
+            ctx.beginPath()
+            ctx.arc(screenX, screenY, size, 0, Math.PI * 2)
+            ctx.fillStyle = snake.color
+            ctx.fill()
+
+            if (snake.isPlayer) {
+              ctx.strokeStyle = "#FFFFFF"
+              ctx.lineWidth = 2
+              ctx.stroke()
+            }
+          }
         }
 
-        return { ...prev, direction: newDirection }
-      })
+        // Head with eyes
+        const head = segments[0]
+        const screenHeadX = head.x - cameraX
+        const screenHeadY = head.y - cameraY
+
+        if (
+          screenHeadX > -50 &&
+          screenHeadX < canvas.width + 50 &&
+          screenHeadY > -50 &&
+          screenHeadY < canvas.height + 50
+        ) {
+          // Eyes
+          const eyeOffset = 5
+          const eyeAngle1 = snake.direction + 0.5
+          const eyeAngle2 = snake.direction - 0.5
+
+          for (const angle of [eyeAngle1, eyeAngle2]) {
+            const eyeX = screenHeadX + Math.cos(angle) * eyeOffset
+            const eyeY = screenHeadY + Math.sin(angle) * eyeOffset
+
+            ctx.beginPath()
+            ctx.arc(eyeX, eyeY, 4, 0, Math.PI * 2)
+            ctx.fillStyle = "#FFFFFF"
+            ctx.fill()
+
+            ctx.beginPath()
+            ctx.arc(eyeX + Math.cos(snake.direction) * 1.5, eyeY + Math.sin(snake.direction) * 1.5, 2, 0, Math.PI * 2)
+            ctx.fillStyle = "#000000"
+            ctx.fill()
+          }
+        }
+      }
+
+      // UI
+      ctx.fillStyle = "#FFFFFF"
+      ctx.font = "bold 24px sans-serif"
+      ctx.fillText(`Score: ${score}`, 20, 40)
+      ctx.fillText(`Earnings: $${earnings.toFixed(2)}`, 20, 70)
+      ctx.fillText(`Bet: $${betAmount}`, 20, 100)
     },
-    [gameState.status],
+    [score, earnings, betAmount],
   )
-
-  const moveSnake = useCallback(
-    (snake: Player) => {
-      const head = snake.segments[0]
-      const newHead: SnakeSegment = {
-        id: Math.random().toString(36).substr(2, 9),
-        x: head.x + snake.direction.x,
-        y: head.y + snake.direction.y,
-      }
-
-      // Verificar colisiones con bordes
-      if (
-        newHead.x < 0 ||
-        newHead.x >= CANVAS_WIDTH / GRID_SIZE ||
-        newHead.y < 0 ||
-        newHead.y >= CANVAS_HEIGHT / GRID_SIZE
-      ) {
-        return { ...snake, isAlive: false }
-      }
-
-      // Verificar colisiones consigo mismo
-      if (snake.segments.some((segment) => segment.x === newHead.x && segment.y === newHead.y)) {
-        return { ...snake, isAlive: false }
-      }
-
-      const newSegments = [newHead, ...snake.segments]
-
-      // Verificar si comió comida
-      const eatenFood = food.find((f) => f.x === newHead.x && f.y === newHead.y)
-      if (eatenFood) {
-        // Crecer y ganar dinero
-        setFood((prev) => prev.filter((f) => f.id !== eatenFood.id))
-        setGameState((prev) => ({
-          ...prev,
-          money: prev.money + eatenFood.value,
-          score: prev.score + eatenFood.value,
-        }))
-
-        return {
-          ...snake,
-          segments: newSegments,
-          money: snake.money + eatenFood.value,
-        }
-      } else {
-        // Mover sin crecer
-        return {
-          ...snake,
-          segments: newSegments.slice(0, -1),
-        }
-      }
-    },
-    [food],
-  )
-
-  const checkPlayerCollisions = useCallback(() => {
-    const playerHead = player.segments[0]
-
-    otherPlayers.forEach((otherPlayer) => {
-      if (!otherPlayer.isAlive) return
-
-      // Verificar si el jugador choca con otro jugador
-      const collision = otherPlayer.segments.some((segment) => segment.x === playerHead.x && segment.y === playerHead.y)
-
-      if (collision) {
-        // El jugador mata al otro y gana su dinero
-        setGameState((prev) => ({
-          ...prev,
-          money: prev.money + otherPlayer.money,
-          score: prev.score + otherPlayer.money,
-        }))
-
-        setOtherPlayers((prev) => prev.map((p) => (p.id === otherPlayer.id ? { ...p, isAlive: false } : p)))
-
-        console.log(`[v0] ¡Mataste a ${otherPlayer.username} y ganaste $${otherPlayer.money}!`)
-      }
-    })
-  }, [player.segments, otherPlayers])
-
-  const moveBots = useCallback(() => {
-    setOtherPlayers((prev) =>
-      prev.map((bot) => {
-        if (!bot.isAlive) return bot
-
-        // IA simple: cambiar dirección aleatoriamente
-        if (Math.random() < 0.1) {
-          const directions = [
-            { x: 0, y: -1 },
-            { x: 0, y: 1 },
-            { x: -1, y: 0 },
-            { x: 1, y: 0 },
-          ]
-          bot.direction = directions[Math.floor(Math.random() * directions.length)]
-        }
-
-        return moveSnake(bot)
-      }),
-    )
-  }, [moveSnake])
-
-  const saveGameSession = useCallback(async () => {
-    if (!authenticated || !user) return null
-
-    try {
-      const { data, error } = await supabase
-        .from("game_sessions")
-        .insert({
-          user_id: user.id,
-          score: gameState.score,
-          level: gameState.level,
-          duration_seconds: Math.floor(gameState.playTime / 10),
-        })
-        .select()
-        .single()
-
-      if (error) throw error
-
-      console.log("[v0] Partida guardada exitosamente")
-      return data?.id || null
-    } catch (error) {
-      console.error("[v0] Error guardando partida:", error)
-      return null
-    }
-  }, [authenticated, user, gameState, supabase])
-
-  const endGame = useCallback(async () => {
-    if (gameState.status !== "playing") return
-
-    setGameState((prev) => ({ ...prev, status: "gameOver" }))
-
-    const sessionId = await saveGameSession()
-
-    if (gameState.money > 0 && authenticated) {
-      const success = await addWinnings(gameState.money, sessionId)
-      if (success) {
-        console.log(`[v0] Se agregaron $${gameState.money} al wallet`)
-      }
-    }
-  }, [gameState, saveGameSession, addWinnings, authenticated])
 
   const gameLoop = useCallback(() => {
-    if (gameState.status !== "playing") return
+    if (gameOverRef.current) return
 
-    // Mover jugador
-    setPlayer((prev) => {
-      const movedPlayer = moveSnake(prev)
-      if (!movedPlayer.isAlive) {
-        setTimeout(endGame, 100)
-      }
-      return movedPlayer
-    })
-
-    // Mover bots
-    moveBots()
-
-    // Verificar colisiones entre jugadores
-    checkPlayerCollisions()
-
-    // Generar comida aleatoriamente
-    if (Math.random() < 0.3 && food.length < 5) {
-      setFood((prev) => [...prev, generateFood()])
-    }
-
-    // Actualizar tiempo de juego
-    setGameState((prev) => ({ ...prev, playTime: prev.playTime + 1 }))
-  }, [gameState.status, moveSnake, moveBots, checkPlayerCollisions, food.length, generateFood, endGame])
-
-  const startGame = useCallback(async () => {
-    if (authenticated && user) {
-      try {
-        const { data, error } = await supabase
-          .from("game_sessions")
-          .insert({
-            user_id: user.id,
-            score: 0,
-            level: 1,
-            duration_seconds: 0,
-          })
-          .select()
-          .single()
-
-        if (!error && data) {
-          setCurrentGameSessionId(data.id)
-        }
-      } catch (error) {
-        console.error("[v0] Error creando sesión de juego:", error)
-      }
-    }
-
-    setGameState({
-      status: "playing",
-      money: 0,
-      score: 0,
-      level: 1,
-      playTime: 0,
-    })
-
-    // Resetear jugador
-    setPlayer((prev) => ({
-      ...prev,
-      segments: [
-        { id: "1", x: 10, y: 10 },
-        { id: "2", x: 9, y: 10 },
-        { id: "3", x: 8, y: 10 },
-      ],
-      direction: { x: 1, y: 0 },
-      money: 0,
-      isAlive: true,
-    }))
-
-    // Generar comida inicial
-    setFood([generateFood(), generateFood(), generateFood()])
-
-    // Generar bots enemigos
-    const bots = Array.from({ length: 3 }, () => generateBotPlayer())
-    setOtherPlayers(bots)
-  }, [generateFood, generateBotPlayer, authenticated, user, supabase])
-
-  const render = useCallback(() => {
     const canvas = canvasRef.current
     if (!canvas) return
 
     const ctx = canvas.getContext("2d")
     if (!ctx) return
 
-    // Limpiar canvas
-    ctx.fillStyle = "#0a0a0a"
-    ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT)
-
-    // Dibujar comida
-    food.forEach((f) => {
-      ctx.fillStyle = f.type === "bonus" ? "#fbbf24" : "#10b981"
-      ctx.fillRect(f.x * GRID_SIZE, f.y * GRID_SIZE, GRID_SIZE - 2, GRID_SIZE - 2)
-
-      // Mostrar valor de la comida
-      ctx.fillStyle = "#ffffff"
-      ctx.font = "12px Arial"
-      ctx.textAlign = "center"
-      ctx.fillText(`$${f.value}`, f.x * GRID_SIZE + GRID_SIZE / 2, f.y * GRID_SIZE + GRID_SIZE / 2 + 4)
-    })
-
-    // Dibujar jugador
-    if (player.isAlive) {
-      player.segments.forEach((segment, index) => {
-        ctx.fillStyle = index === 0 ? "#059669" : player.color
-        ctx.fillRect(segment.x * GRID_SIZE, segment.y * GRID_SIZE, GRID_SIZE - 2, GRID_SIZE - 2)
-
-        // Dibujar ojos en la cabeza
-        if (index === 0) {
-          ctx.fillStyle = "#ffffff"
-          ctx.fillRect(segment.x * GRID_SIZE + 4, segment.y * GRID_SIZE + 4, 3, 3)
-          ctx.fillRect(segment.x * GRID_SIZE + 13, segment.y * GRID_SIZE + 4, 3, 3)
-        }
-      })
+    for (const snake of snakesRef.current) {
+      updateSnake(snake, canvas)
     }
 
-    // Dibujar otros jugadores
-    otherPlayers.forEach((otherPlayer) => {
-      if (!otherPlayer.isAlive) return
+    draw(ctx, canvas)
+    animationRef.current = requestAnimationFrame(gameLoop)
+  }, [draw])
 
-      otherPlayer.segments.forEach((segment, index) => {
-        ctx.fillStyle = index === 0 ? otherPlayer.color : `${otherPlayer.color}aa`
-        ctx.fillRect(segment.x * GRID_SIZE, segment.y * GRID_SIZE, GRID_SIZE - 2, GRID_SIZE - 2)
-      })
+  const handleMouseMove = useCallback((e: MouseEvent) => {
+    const canvas = canvasRef.current
+    if (!canvas) return
 
-      // Mostrar nombre y dinero del jugador
-      const head = otherPlayer.segments[0]
-      ctx.fillStyle = "#ffffff"
-      ctx.font = "10px Arial"
-      ctx.textAlign = "center"
-      ctx.fillText(
-        `${otherPlayer.username} ($${otherPlayer.money})`,
-        head.x * GRID_SIZE + GRID_SIZE / 2,
-        head.y * GRID_SIZE - 5,
-      )
-    })
-  }, [player, otherPlayers, food])
-
-  // Efectos
-  useEffect(() => {
-    window.addEventListener("keydown", handleKeyPress)
-    return () => window.removeEventListener("keydown", handleKeyPress)
-  }, [handleKeyPress])
-
-  useEffect(() => {
-    if (gameState.status === "playing") {
-      gameLoopRef.current = window.setInterval(() => {
-        gameLoop()
-        render()
-      }, gameSpeed)
-    } else {
-      if (gameLoopRef.current) {
-        clearInterval(gameLoopRef.current)
-      }
+    const rect = canvas.getBoundingClientRect()
+    mousePos.current = {
+      x: e.clientX - rect.left,
+      y: e.clientY - rect.top,
     }
+  }, [])
+
+  const handleGameOver = async () => {
+    if (earnings > 0) {
+      await addWinnings(earnings)
+    }
+  }
+
+  useEffect(() => {
+    if (gameOver) {
+      handleGameOver()
+    }
+  }, [gameOver])
+
+  useEffect(() => {
+    const canvas = canvasRef.current
+    if (!canvas) return
+
+    const resizeCanvas = () => {
+      canvas.width = window.innerWidth
+      canvas.height = window.innerHeight
+    }
+
+    resizeCanvas()
+    window.addEventListener("resize", resizeCanvas)
+    window.addEventListener("mousemove", handleMouseMove)
+
+    initGame()
+    animationRef.current = requestAnimationFrame(gameLoop)
 
     return () => {
-      if (gameLoopRef.current) {
-        clearInterval(gameLoopRef.current)
+      window.removeEventListener("resize", resizeCanvas)
+      window.removeEventListener("mousemove", handleMouseMove)
+      if (animationRef.current) {
+        cancelAnimationFrame(animationRef.current)
       }
     }
-  }, [gameState.status, gameLoop, render, gameSpeed])
+  }, [initGame, gameLoop, handleMouseMove])
 
-  useEffect(() => {
-    render()
-  }, [render])
-
-  return (
-    <div className="w-full h-screen bg-background flex flex-col items-center justify-center p-4">
-      <div className="w-full max-w-4xl mb-4">
-        <Card className="bg-card/50 backdrop-blur-sm">
-          <CardContent className="p-4">
-            <div className="flex justify-between items-center">
-              <div className="flex gap-6">
-                <div className="text-center">
-                  <div className="text-3xl font-bold text-primary">${gameState.money.toFixed(2)}</div>
-                  <div className="text-xs text-muted-foreground">DINERO GANADO</div>
-                </div>
-                <div className="text-center">
-                  <div className="text-xl font-bold text-accent">{gameState.score}</div>
-                  <div className="text-xs text-muted-foreground">PUNTOS</div>
-                </div>
-                <div className="text-center">
-                  <div className="text-lg font-bold text-blue-400">{player.segments.length}</div>
-                  <div className="text-xs text-muted-foreground">LONGITUD</div>
-                </div>
-                <div className="text-center">
-                  <div className="text-lg font-bold text-yellow-400">{Math.floor(gameState.playTime / 10)}s</div>
-                  <div className="text-xs text-muted-foreground">TIEMPO</div>
-                </div>
-                <div className="text-center">
-                  <div className="text-lg font-bold text-red-400">${betAmount.toFixed(2)}</div>
-                  <div className="text-xs text-muted-foreground">APUESTA</div>
-                </div>
-              </div>
-
-              <div className="flex gap-2">
-                {gameState.status === "waiting" && (
-                  <Button onClick={startGame} size="lg" className="bg-primary hover:bg-primary/90">
-                    🐍 Iniciar Juego
-                  </Button>
-                )}
-                {gameState.status === "gameOver" && (
-                  <Button onClick={startGame} size="lg" className="bg-primary hover:bg-primary/90">
-                    🔄 Jugar de Nuevo
-                  </Button>
-                )}
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      <div className="relative">
-        <canvas
-          ref={canvasRef}
-          width={CANVAS_WIDTH}
-          height={CANVAS_HEIGHT}
-          className="border-2 border-border rounded-lg bg-background"
-        />
-
-        {/* Overlay de instrucciones */}
-        {gameState.status === "waiting" && (
-          <div className="absolute inset-0 bg-background/80 flex items-center justify-center rounded-lg">
-            <Card className="w-96">
-              <CardContent className="p-6 text-center space-y-4">
-                <h3 className="text-2xl font-bold text-primary">🐍 Snake Battle</h3>
-                <div className="space-y-2 text-sm text-muted-foreground">
-                  <p>• Usa WASD o las flechas para moverte</p>
-                  <p>• Come puntos para ganar dinero 💰</p>
-                  <p>• Mata otros jugadores para robar su dinero</p>
-                  <p>• ¡No choques con las paredes o contigo mismo!</p>
-                  <p className="text-primary font-bold">Apuesta: ${betAmount}</p>
-                </div>
-                <Button onClick={startGame} size="lg" className="w-full">
-                  ¡Empezar a Jugar!
-                </Button>
-              </CardContent>
-            </Card>
-          </div>
-        )}
-
-        {/* Overlay de game over */}
-        {gameState.status === "gameOver" && (
-          <div className="absolute inset-0 bg-background/90 flex items-center justify-center rounded-lg">
-            <Card className="w-96">
-              <CardContent className="p-6 text-center space-y-4">
-                <h3 className="text-3xl font-bold text-destructive">💀 Game Over</h3>
-                <div className="space-y-2">
-                  <div className="text-4xl font-bold text-primary">${gameState.money.toFixed(2)}</div>
-                  <div className="text-muted-foreground">Dinero Ganado en esta Partida</div>
-                  <div className="text-sm text-muted-foreground">
-                    Ganancia Neta: ${(gameState.money - betAmount).toFixed(2)}
-                  </div>
-                  <div className="text-sm text-muted-foreground">
-                    Puntos: {gameState.score} | Tiempo: {Math.floor(gameState.playTime / 10)}s
-                  </div>
-                </div>
-                <div className="flex gap-2">
-                  <Button onClick={startGame} size="lg" className="flex-1">
-                    Jugar de Nuevo
-                  </Button>
-                  <Button asChild variant="outline" size="lg" className="flex-1 bg-transparent">
-                    <a href="/">Volver al Lobby</a>
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-        )}
-      </div>
-
-      {gameState.status === "playing" && (
-        <div className="w-full max-w-4xl mt-4">
-          <Card className="bg-card/30 backdrop-blur-sm">
-            <CardContent className="p-4">
-              <div className="flex justify-between items-center">
-                <h4 className="text-sm font-bold text-muted-foreground">JUGADORES EN VIVO</h4>
-                <div className="flex gap-4 text-xs">
-                  <span className="text-primary">
-                    🟢 {player.username}: ${player.money.toFixed(2)}
-                  </span>
-                  {otherPlayers
-                    .filter((p) => p.isAlive)
-                    .map((p) => (
-                      <span key={p.id} style={{ color: p.color }}>
-                        🔴 {p.username}: ${p.money.toFixed(2)}
-                      </span>
-                    ))}
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+  if (gameOver) {
+    return (
+      <div className="fixed inset-0 bg-background flex items-center justify-center z-50">
+        <div className="text-center">
+          <h1 className="text-5xl font-bold text-white mb-4">Game Over!</h1>
+          <p className="text-2xl text-muted-foreground mb-2">Score: {score}</p>
+          <p className="text-3xl text-primary font-bold mb-8">Earnings: ${earnings.toFixed(2)}</p>
+          <button
+            onClick={() => {
+              initGame()
+              animationRef.current = requestAnimationFrame(gameLoop)
+            }}
+            className="px-8 py-4 bg-primary text-primary-foreground rounded-lg text-xl font-bold hover:bg-primary/90 transition-colors"
+          >
+            Play Again
+          </button>
         </div>
-      )}
-    </div>
-  )
+      </div>
+    )
+  }
+
+  return <canvas ref={canvasRef} className="fixed inset-0 cursor-none" style={{ touchAction: "none" }} />
 }

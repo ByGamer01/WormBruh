@@ -1,8 +1,8 @@
 "use client"
 
 import { useState, useCallback } from "react"
-import { createBrowserClient } from "@supabase/ssr"
-import { usePrivy } from "@privy-io/react-auth"
+import { createBrowserClient } from "@/lib/supabase/client"
+import { useAuth } from "@/components/providers/auth-provider"
 
 interface GameSession {
   id: string
@@ -15,12 +15,9 @@ interface GameSession {
 export function useGameLogic() {
   const [gameSession, setGameSession] = useState<GameSession | null>(null)
   const [isLoading, setIsLoading] = useState(false)
-  const { user } = usePrivy()
+  const { user } = useAuth()
 
-  const supabase = createBrowserClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-  )
+  const supabase = createBrowserClient()
 
   const joinGame = useCallback(
     async (betAmount: number) => {
@@ -42,12 +39,11 @@ export function useGameLogic() {
 
         setGameSession(data)
 
-        // Simular inicio del juego después de 2 segundos
         setTimeout(() => {
           setGameSession((prev) => (prev ? { ...prev, status: "playing" } : null))
         }, 2000)
       } catch (error) {
-        console.error("Error joining game:", error)
+        // Silent error
       } finally {
         setIsLoading(false)
       }
@@ -76,7 +72,7 @@ export function useGameLogic() {
 
         setGameSession((prev) => (prev ? { ...prev, status: "finished", score, winnings } : null))
       } catch (error) {
-        console.error("Error finishing game:", error)
+        // Silent error
       }
     },
     [gameSession, supabase],

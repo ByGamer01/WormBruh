@@ -1,19 +1,20 @@
 "use client"
 
 import type React from "react"
-
-import { usePrivy } from "@privy-io/react-auth"
+import { useAuth } from "@/components/providers/auth-provider"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
+import { useRouter } from "next/navigation"
 
 interface AuthGuardProps {
   children: React.ReactNode
 }
 
 export function AuthGuard({ children }: AuthGuardProps) {
-  const { authenticated, login, ready } = usePrivy()
+  const { user, loading } = useAuth()
+  const router = useRouter()
 
-  if (!ready) {
+  if (loading) {
     return (
       <div className="flex min-h-screen items-center justify-center">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
@@ -21,7 +22,7 @@ export function AuthGuard({ children }: AuthGuardProps) {
     )
   }
 
-  if (!authenticated) {
+  if (!user) {
     return (
       <div className="flex min-h-screen items-center justify-center p-6">
         <Card className="w-full max-w-md">
@@ -30,7 +31,7 @@ export function AuthGuard({ children }: AuthGuardProps) {
             <CardDescription>Inicia sesión para comenzar a jugar y ganar puntos</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <Button onClick={login} className="w-full">
+            <Button onClick={() => router.push("/auth/login")} className="w-full">
               Iniciar Sesión
             </Button>
             <p className="text-xs text-center text-muted-foreground">

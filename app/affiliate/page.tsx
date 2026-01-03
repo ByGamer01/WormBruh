@@ -5,8 +5,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { useState, useEffect } from "react"
-import { createBrowserClient } from "@supabase/ssr"
-import { usePrivy } from "@privy-io/react-auth"
+import { useAuth } from "@/components/providers/auth-provider"
+import { createBrowserClient } from "@/lib/supabase/client"
 
 export default function AffiliatePage() {
   const [referralCode, setReferralCode] = useState("")
@@ -16,12 +16,8 @@ export default function AffiliatePage() {
     totalEarnings: 0,
     pendingRewards: 0,
   })
-  const { user } = usePrivy()
-
-  const supabase = createBrowserClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-  )
+  const { user } = useAuth()
+  const supabase = createBrowserClient()
 
   useEffect(() => {
     if (typeof window !== "undefined") {
@@ -59,7 +55,7 @@ export default function AffiliatePage() {
         })
       }
     } catch (error) {
-      console.error("Error loading referral data:", error)
+      // Silent error handling
     }
   }
 
@@ -76,7 +72,7 @@ export default function AffiliatePage() {
       <div className="min-h-screen bg-background p-4">
         <div className="max-w-4xl mx-auto">
           <h1 className="text-4xl font-bold text-center mb-8">
-            DAMN<span className="text-primary">BRUH</span> Affiliate Program
+            Worm<span className="text-primary">Bruh</span> Affiliate Program
           </h1>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">

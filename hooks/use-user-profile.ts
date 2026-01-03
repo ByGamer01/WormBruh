@@ -1,7 +1,7 @@
 "use client"
 
-import { usePrivy } from "@privy-io/react-auth"
-import { createClient } from "@/lib/supabase/client"
+import { useAuth } from "@/components/providers/auth-provider"
+import { createBrowserClient } from "@/lib/supabase/client"
 import { useEffect, useState } from "react"
 
 interface UserProfile {
@@ -14,10 +14,11 @@ interface UserProfile {
 }
 
 export function useUserProfile() {
-  const { user, authenticated } = usePrivy()
+  const { user } = useAuth()
+  const authenticated = !!user
   const [profile, setProfile] = useState<UserProfile | null>(null)
   const [loading, setLoading] = useState(true)
-  const supabase = createClient()
+  const supabase = createBrowserClient()
 
   useEffect(() => {
     if (!authenticated || !user) {
@@ -28,7 +29,6 @@ export function useUserProfile() {
 
     const fetchOrCreateProfile = async () => {
       try {
-        // Primero intentamos obtener el perfil existente
         const { data: existingProfile, error: fetchError } = await supabase
           .from("profiles")
           .select("*")
@@ -38,27 +38,22 @@ export function useUserProfile() {
         if (existingProfile) {
           setProfile(existingProfile)
         } else if (fetchError?.code === "PGRST116") {
-          // El perfil no existe, lo creamos
           const { data: newProfile, error: createError } = await supabase
             .from("profiles")
             .insert({
               id: user.id,
               username: `user_${user.id.slice(0, 8)}`,
-              display_name: user.email?.address?.split("@")[0] || "Usuario",
+              display_name: user.email?.split("@")[0] || "Usuario",
             })
             .select()
             .single()
 
-          if (createError) {
-            console.error("Error creating profile:", createError)
-          } else {
+          if (!createError) {
             setProfile(newProfile)
           }
-        } else {
-          console.error("Error fetching profile:", fetchError)
         }
       } catch (error) {
-        console.error("Error in fetchOrCreateProfile:", error)
+        // Silent error
       } finally {
         setLoading(false)
       }

@@ -3,7 +3,7 @@
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { SnakeWorms } from "@/components/game/snake-worms"
-import { SnakeGame } from "@/components/game/snake-game"
+import { WormBruhGame } from "@/components/game/wormbruh-game"
 import { AddFundsModal } from "@/components/wallet/add-funds-modal"
 import { useState } from "react"
 import { useGameData } from "@/hooks/use-game-data"
@@ -38,7 +38,7 @@ export default function HomePage() {
     }
   }
 
-  const handleBackToLobby = () => {
+  const handleExitGame = (earnings: number) => {
     setIsPlaying(false)
   }
 
@@ -52,17 +52,7 @@ export default function HomePage() {
   }
 
   if (isPlaying) {
-    return (
-      <div className="relative">
-        <Button
-          onClick={handleBackToLobby}
-          className="absolute top-4 left-4 z-50 bg-destructive hover:bg-destructive/90"
-        >
-          ← Volver al Lobby
-        </Button>
-        <SnakeGame betAmount={selectedBet} />
-      </div>
-    )
+    return <WormBruhGame betAmount={selectedBet} onExit={handleExitGame} />
   }
 
   return (

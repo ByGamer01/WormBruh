@@ -1,11 +1,12 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { createClient } from "@/lib/supabase/client"
-import { usePrivy } from "@privy-io/react-auth"
+import { createBrowserClient } from "@/lib/supabase/client"
+import { useAuth } from "@/components/providers/auth-provider"
 
 export function useGameData() {
-  const { user, authenticated } = usePrivy()
+  const { user } = useAuth()
+  const authenticated = !!user
   const [leaderboard, setLeaderboard] = useState([
     { username: "Quantum", winnings: 7681.62 },
     { username: "Mr-1221z", winnings: 5911.08 },
@@ -19,7 +20,7 @@ export function useGameData() {
   const saveGameSession = async (sessionData: any) => {
     if (!authenticated || !user) return null
 
-    const supabase = createClient()
+    const supabase = createBrowserClient()
 
     try {
       const { data, error } = await supabase
@@ -34,19 +35,17 @@ export function useGameData() {
         .single()
 
       if (error) {
-        console.log("[v0] Error saving game session:", error)
         return null
       }
 
       return data
     } catch (error) {
-      console.log("[v0] Failed to save game session:", error)
       return null
     }
   }
 
   const updateLeaderboard = async () => {
-    const supabase = createClient()
+    const supabase = createBrowserClient()
 
     try {
       const { data, error } = await supabase
@@ -59,21 +58,20 @@ export function useGameData() {
         .limit(10)
 
       if (data && !error) {
-        const formattedData = data.map((item: any, index: number) => ({
+        const formattedData = data.map((item: any) => ({
           username: `Player_${item.user_id.slice(-4)}`,
-          winnings: item.score * 0.01, // Convert score to winnings
+          winnings: item.score * 0.01,
         }))
         setLeaderboard(formattedData)
       }
     } catch (error) {
-      console.log("[v0] Error fetching leaderboard:", error)
+      // Silent error
     }
   }
 
   useEffect(() => {
     updateLeaderboard()
 
-    // Update stats every 30 seconds
     const interval = setInterval(() => {
       setGlobalStats((prev) => ({
         playersInGame: Math.floor(Math.random() * 50) + 20,
